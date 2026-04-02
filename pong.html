@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        h1 {
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            font-size: 2.5rem;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            background: #000;
+            border: 3px solid #fff;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .center-line {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            top: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                #fff 0px,
+                #fff 10px,
+                transparent 10px,
+                transparent 20px
+            );
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+
+        .paddle {
+            position: absolute;
+            width: 10px;
+            height: 80px;
+            background: #fff;
+            top: 160px;
+        }
+
+        #leftPaddle {
+            left: 10px;
+        }
+
+        #rightPaddle {
+            right: 10px;
+        }
+
+        .ball {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #fff;
+            border-radius: 50%;
+            top: 195px;
+            left: 395px;
+        }
+
+        .scoreboard {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .score-section {
+            text-align: center;
+            flex: 1;
+        }
+
+        .score-label {
+            font-size: 1rem;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .score {
+            font-size: 2rem;
+            color: #00ff00;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        .instructions {
+            color: white;
+            text-align: center;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .instructions strong {
+            color: #00ff00;
+        }
+
+        .game-status {
+            color: white;
+            font-size: 1.2rem;
+            text-align: center;
+            min-height: 25px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏓 PONG GAME 🏓</h1>
+        
+        <div id="gameContainer">
+            <div class="center-line"></div>
+            <div id="leftPaddle" class="paddle"></div>
+            <div id="rightPaddle" class="paddle"></div>
+            <div class="ball"></div>
+        </div>
+
+        <div class="scoreboard">
+            <div class="score-section">
+                <div class="score-label">Player</div>
+                <div class="score" id="playerScore">0</div>
+            </div>
+            <div class="score-section">
+                <div class="score-label">Computer</div>
+                <div class="score" id="computerScore">0</div>
+            </div>
+        </div>
+
+        <div class="game-status" id="gameStatus"></div>
+
+        <div class="instructions">
+            <strong>Controls:</strong><br>
+            🖱️ Move Mouse or ⬆️⬇️ Arrow Keys to Control Left Paddle<br>
+            💻 Computer Controls Right Paddle<br>
+            Click or Press Space to Start/Reset
+        </div>
+    </div>
+
+    <script>
+        // Game constants
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 400;
+        const PADDLE_WIDTH = 10;
+        const PADDLE_HEIGHT = 80;
+        const BALL_SIZE = 10;
+        const PADDLE_SPEED = 6;
+        const BALL_SPEED = 5;
+
+        // Game objects
+        const gameContainer = document.getElementById('gameContainer');
+        const leftPaddle = document.getElementById('leftPaddle');
+        const rightPaddle = document.getElementById('rightPaddle');
+        const ball = document.querySelector('.ball');
+        const playerScoreDisplay = document.getElementById('playerScore');
+        const computerScoreDisplay = document.getElementById('computerScore');
+        const gameStatus = document.getElementById('gameStatus');
+
+        // Game state
+        let gameRunning = false;
+        let playerScore = 0;
+        let computerScore = 0;
+        let mouseY = GAME_HEIGHT / 2;
+
+        let paddleLeft = {
+            x: 10,
+            y: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            speed: PADDLE_SPEED
+        };
+
+        let paddleRight = {
+            x: GAME_WIDTH - PADDLE_WIDTH - 10,
+            y: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            speed: PADDLE_SPEED
+        };
+
+        let ballObj = {
+            x: GAME_WIDTH / 2 - BALL_SIZE / 2,
+            y: GAME_HEIGHT / 2 - BALL_SIZE / 2,
+            width: BALL_SIZE,
+            height: BALL_SIZE,
+            speedX: BALL_SPEED,
+            speedY: BALL_SPEED,
+            maxSpeed: 7
+        };
+
+        // Keyboard state
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                toggleGame();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Mouse movement
+        gameContainer.addEventListener('mousemove', (e) => {
+            const rect = gameContainer.getBoundingClientRect();
+            mouseY = e.clientY - rect.top;
+        });
+
+        // Click to start
+        gameContainer.addEventListener('click', toggleGame);
+
+        function toggleGame() {
+            gameRunning = !gameRunning;
+            gameStatus.textContent = gameRunning ? 'Game Running...' : 'Paused - Click to Resume';
+        }
+
+        function updatePaddleLeft() {
+            // Arrow keys control
+            if (keys['ArrowUp']) {
+                paddleLeft.y = Math.max(0, paddleLeft.y - paddleLeft.speed);
+            }
+            if (keys['ArrowDown']) {
+                paddleLeft.y = Math.min(GAME_HEIGHT - paddleLeft.height, paddleLeft.y + paddleLeft.speed);
+            }
+
+            // Mouse control
+            paddleLeft.y = Math.max(0, Math.min(GAME_HEIGHT - paddleLeft.height, mouseY - paddleLeft.height / 2));
+
+            leftPaddle.style.top = paddleLeft.y + 'px';
+        }
+
+        function updatePaddleRight() {
+            // Simple AI
+            const paddleCenter = paddleRight.y + paddleRight.height / 2;
+            const ballCenter = ballObj.y + ballObj.height / 2;
+            const difference = ballCenter - paddleCenter;
+
+            if (difference > 30) {
+                paddleRight.y = Math.min(GAME_HEIGHT - paddleRight.height, paddleRight.y + paddleRight.speed);
+            } else if (difference < -30) {
+                paddleRight.y = Math.max(0, paddleRight.y - paddleRight.speed);
+            }
+
+            rightPaddle.style.top = paddleRight.y + 'px';
+        }
+
+        function updateBall() {
+            ballObj.x += ballObj.speedX;
+            ballObj.y += ballObj.speedY;
+
+            // Wall collision (top and bottom)
+            if (ballObj.y <= 0 || ballObj.y + ballObj.height >= GAME_HEIGHT) {
+                ballObj.speedY = -ballObj.speedY;
+                ballObj.y = Math.max(0, Math.min(GAME_HEIGHT - ballObj.height, ballObj.y));
+            }
+
+            // Left paddle collision
+            if (checkCollision(ballObj, paddleLeft)) {
+                ballObj.speedX = -ballObj.speedX;
+                ballObj.x = paddleLeft.x + paddleLeft.width;
+                addSpin();
+            }
+
+            // Right paddle collision
+            if (checkCollision(ballObj, paddleRight)) {
+                ballObj.speedX = -ballObj.speedX;
+                ballObj.x = paddleRight.x - ballObj.width;
+                addSpin();
+            }
+
+            // Score points
+            if (ballObj.x < 0) {
+                computerScore++;
+                computerScoreDisplay.textContent = computerScore;
+                resetBall();
+            }
+            if (ballObj.x > GAME_WIDTH) {
+                playerScore++;
+                playerScoreDisplay.textContent = playerScore;
+                resetBall();
+            }
+
+            ball.style.left = ballObj.x + 'px';
+            ball.style.top = ballObj.y + 'px';
+        }
+
+        function checkCollision(ball, paddle) {
+            return (
+                ball.x < paddle.x + paddle.width &&
+                ball.x + ball.width > paddle.x &&
+                ball.y < paddle.y + paddle.height &&
+                ball.y + ball.height > paddle.y
+            );
+        }
+
+        function addSpin() {
+            // Add variation to ball speed based on where it hits the paddle
+            ballObj.speedY += (Math.random() - 0.5) * 2;
+            // Limit max speed
+            const speed = Math.sqrt(ballObj.speedX ** 2 + ballObj.speedY ** 2);
+            if (speed > ballObj.maxSpeed) {
+                ballObj.speedX = (ballObj.speedX / speed) * ballObj.maxSpeed;
+                ballObj.speedY = (ballObj.speedY / speed) * ballObj.maxSpeed;
+            }
+        }
+
+        function resetBall() {
+            ballObj.x = GAME_WIDTH / 2 - BALL_SIZE / 2;
+            ballObj.y = GAME_HEIGHT / 2 - BALL_SIZE / 2;
+            ballObj.speedX = BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
+            ballObj.speedY = BALL_SPEED * (Math.random() - 0.5);
+        }
+
+        function gameLoop() {
+            if (gameRunning) {
+                updatePaddleLeft();
+                updatePaddleRight();
+                updateBall();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize
+        gameStatus.textContent = 'Click to Start';
+        gameLoop();
+    </script>
+</body>
+</html>
